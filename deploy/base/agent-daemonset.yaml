@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: chaosreplay-agent, namespace: chaosreplay-system}
+spec:
+  selector: {matchLabels: {app: chaosreplay-agent}}
+  template:
+    metadata: {labels: {app: chaosreplay-agent}}
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: agent
+          image: chaosreplay/agent:dev
+          args: ["-listen", ":8080"]
+          # Add -observe-process-exits only after validating node BTF/eBPF policy.
+          livenessProbe:
+            tcpSocket: {port: 8080}
+          readinessProbe:
+            tcpSocket: {port: 8080}
+          securityContext: {privileged: true}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          volumeMounts:
+            - {name: cgroup, mountPath: /sys/fs/cgroup}
+            - {name: debugfs, mountPath: /sys/kernel/debug, readOnly: true}
+            - {name: tracefs, mountPath: /sys/kernel/tracing, readOnly: true}
+            - {name: state, mountPath: /var/lib/chaosreplay}
+      volumes:
+        - {name: cgroup, hostPath: {path: /sys/fs/cgroup}}
+        - {name: debugfs, hostPath: {path: /sys/kernel/debug, type: Directory}}
+        - {name: tracefs, hostPath: {path: /sys/kernel/tracing, type: Directory}}
+        - {name: state, hostPath: {path: /var/lib/chaosreplay, type: DirectoryOrCreate}}

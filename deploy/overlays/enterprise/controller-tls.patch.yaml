@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chaosreplay-controller
+  namespace: chaosreplay-system
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: controller
+          args:
+            - "-interval"
+            - "2s"
+            - "-leader-election"
+            - "true"
+            - "-leader-election-namespace"
+            - "chaosreplay-system"
+            - "-agent-scheme"
+            - "https"
+            - "-agent-ca"
+            - "/etc/chaosreplay/agent-ca/ca.crt"
+            - "-agent-client-cert"
+            - "/etc/chaosreplay/client/tls.crt"
+            - "-agent-client-key"
+            - "/etc/chaosreplay/client/tls.key"
+          volumeMounts:
+            - name: agent-ca
+              mountPath: /etc/chaosreplay/agent-ca
+              readOnly: true
+            - name: client-cert
+              mountPath: /etc/chaosreplay/client
+              readOnly: true
+      volumes:
+        - name: agent-ca
+          secret:
+            secretName: chaosreplay-agent-client-ca
+        - name: client-cert
+          secret:
+            secretName: chaosreplay-controller-client-tls

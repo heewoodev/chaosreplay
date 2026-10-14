@@ -1,0 +1,26 @@
+apiVersion: chaosreplay.io/v1alpha1
+kind: ChaosExperiment
+metadata:
+  name: checkout-network-delay
+  namespace: chaosreplay-test
+spec:
+  apiVersion: chaosreplay/v1
+  id: checkout-network-delay
+  seed: 42
+  target:
+    kind: kubernetes
+    name: checkout
+    namespace: chaosreplay-test
+    selector: {app: checkout}
+  steps:
+    - id: delay
+      afterMs: 0
+      durationMs: 100
+      fault:
+        type: network_latency
+        params: {interface: eth0, delayMs: 10, jitterMs: 0}
+  assertions:
+    - name: checkout-healthy
+      type: http
+      url: http://checkout.chaosreplay-test.svc.cluster.local/
+      expectCode: 200

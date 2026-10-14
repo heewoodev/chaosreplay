@@ -1,0 +1,79 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go mod tidy && git diff --exit-code -- go.mod go.sum
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: go build -trimpath ./cmd/chaosreplay ./cmd/chaosreplay-agent ./cmd/chaosreplay-controller
+  images:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.controller
+          push: false
+          tags: chaosreplay/controller:ci
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.agent
+          push: false
+          tags: chaosreplay/agent:ci
+  kind-integration:
+    needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: helm/kind-action@v1.12.0
+        with:
+          cluster_name: chaosreplay-ci
+      - run: docker build -f Dockerfile.controller -t chaosreplay/controller:ci .
+      - run: docker build -f Dockerfile.agent -t chaosreplay/agent:ci .
+      - run: kind load docker-image chaosreplay/controller:ci chaosreplay/agent:ci --name chaosreplay-ci
+      - run: |
+          kubectl apply -f deploy/crd.yaml
+          kubectl apply -f deploy/rbac.yaml
+          kubectl apply -f deploy/agent-daemonset.yaml
+          kubectl apply -f deploy/controller-deployment.yaml
+          kubectl -n chaosreplay-system set image daemonset/chaosreplay-agent agent=chaosreplay/agent:ci
+          kubectl -n chaosreplay-system set image deployment/chaosreplay-controller controller=chaosreplay/controller:ci
+          kubectl -n chaosreplay-system rollout status daemonset/chaosreplay-agent --timeout=180s
+          kubectl -n chaosreplay-system rollout status deployment/chaosreplay-controller --timeout=180s
+          kubectl -n chaosreplay-system patch daemonset chaosreplay-agent --type=json -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"-observe-process-exits"}]'
+          kubectl -n chaosreplay-system rollout status daemonset/chaosreplay-agent --timeout=180s
+      - run: |
+          kubectl apply -f integration/kind/workload.yaml
+          kubectl -n chaosreplay-test rollout status deployment/checkout --timeout=180s
+          kubectl apply -f integration/kind/experiment.yaml
+          kubectl -n chaosreplay-test wait --for=jsonpath='{.status.phase}'=Succeeded chaosexperiment/checkout-network-delay --timeout=180s
+          kubectl apply -f integration/kind/experiment-process-kill.yaml
+          kubectl -n chaosreplay-test wait --for=jsonpath='{.status.phase}'=Succeeded chaosexperiment/checkout-process-kill --timeout=180s
+          kubectl -n chaosreplay-test get chaosexperiment/checkout-network-delay -o yaml
+          kubectl -n chaosreplay-test get chaosexperiment/checkout-process-kill -o yaml
+      - if: always()
+        run: |
+          kubectl get pods -A -o wide || true
+          kubectl -n chaosreplay-system logs daemonset/chaosreplay-agent --all-containers --tail=200 || true
+          kubectl -n chaosreplay-system logs deployment/chaosreplay-controller --all-containers --tail=200 || true
+          kubectl -n chaosreplay-test get configmaps -l app.kubernetes.io/managed-by=chaosreplay -o yaml || true

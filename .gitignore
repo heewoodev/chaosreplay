@@ -1,0 +1,28 @@
+# Local build artifacts
+*.exe
+*.out
+*.test
+/chaosreplay
+/chaosreplay-agent
+/chaosreplay-controller
+
+# Local execution evidence and Agent state
+run.json
+record.json
+active.json
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local certificates and secrets
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example

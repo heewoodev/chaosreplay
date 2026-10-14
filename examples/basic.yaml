@@ -1,0 +1,26 @@
+apiVersion: chaosreplay/v1
+id: checkout-network-and-process
+seed: 42
+target:
+  kind: kubernetes
+  name: checkout
+  namespace: chaosreplay-test
+  selector: {app: checkout}
+steps:
+  - id: add-latency
+    afterMs: 1000
+    durationMs: 5000
+    fault:
+      type: network_latency
+      params:
+        interface: eth0
+        delayMs: 200
+        jitterMs: 0
+  - id: kill-worker
+    afterMs: 3000
+    durationMs: 0
+    fault:
+      type: process_kill
+      params:
+        pid: 1
+        signal: SIGTERM

@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: chaosreplay-agent
+  namespace: chaosreplay-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: agent
+          args:
+            - "-listen"
+            - ":8080"
+            - "-tls-cert"
+            - "/etc/chaosreplay/tls/tls.crt"
+            - "-tls-key"
+            - "/etc/chaosreplay/tls/tls.key"
+            - "-client-ca"
+            - "/etc/chaosreplay/client-ca/ca.crt"
+          volumeMounts:
+            - name: agent-tls
+              mountPath: /etc/chaosreplay/tls
+              readOnly: true
+            - name: client-ca
+              mountPath: /etc/chaosreplay/client-ca
+              readOnly: true
+      volumes:
+        - name: agent-tls
+          secret:
+            secretName: chaosreplay-agent-tls
+        - name: client-ca
+          secret:
+            secretName: chaosreplay-agent-client-ca

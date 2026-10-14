@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chaosreplay-controller
+  namespace: chaosreplay-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: chaosreplay-controller}
+  template:
+    metadata:
+      labels: {app: chaosreplay-controller}
+    spec:
+      serviceAccountName: chaosreplay-controller
+      securityContext:
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: controller
+          env:
+            - name: POD_NAME
+              valueFrom: {fieldRef: {fieldPath: metadata.name}}
+          image: chaosreplay/controller:dev
+          args: ["-interval", "2s", "-max-concurrent", "1", "-health-listen", ":8081"]
+          ports:
+            - {name: health, containerPort: 8081}
+          livenessProbe:
+            httpGet: {path: /healthz, port: health}
+          readinessProbe:
+            httpGet: {path: /readyz, port: health}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}

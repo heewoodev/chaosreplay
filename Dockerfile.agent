@@ -1,0 +1,14 @@
+FROM golang:1.26 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /out/chaosreplay-agent ./cmd/chaosreplay-agent
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends iproute2 procps util-linux ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=build /out/chaosreplay-agent /chaosreplay-agent
+# The Pod is privileged and this process needs CAP_NET_ADMIN and cgroup access.
+# Restrict scheduling and RBAC at the Kubernetes layer.
+USER 0:0
+ENTRYPOINT ["/chaosreplay-agent"]

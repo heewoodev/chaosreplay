@@ -1,0 +1,25 @@
+apiVersion: chaosreplay.io/v1alpha1
+kind: ChaosExperiment
+metadata:
+  name: checkout-process-kill
+  namespace: chaosreplay-test
+spec:
+  apiVersion: chaosreplay/v1
+  id: checkout-process-kill
+  seed: 44
+  target:
+    kind: kubernetes
+    name: checkout
+    namespace: chaosreplay-test
+    selector: {app: checkout}
+  steps:
+    - id: terminate-main
+      durationMs: 0
+      fault:
+        type: process_kill
+        params: {pid: 1, signal: SIGTERM}
+  assertions:
+    - name: checkout-healthy
+      type: http
+      url: http://checkout.chaosreplay-test.svc.cluster.local/
+      expectCode: 200

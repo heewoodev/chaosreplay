@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - crd.yaml
+  - rbac.yaml
+  - agent-daemonset.yaml
+  - controller-deployment.yaml
+images:
+  - name: chaosreplay/agent
+    newName: ghcr.io/replace-me/chaosreplay-agent
+    newTag: dev
+  - name: chaosreplay/controller
+    newName: ghcr.io/replace-me/chaosreplay-controller
+    newTag: dev
